@@ -479,14 +479,14 @@ void do_display(csv_t D, head_t H[], int dr, int dc,
 		if (comp == TRUE){
 			continue;
 		} else {
-			printf("%2c", SPACE);
+			printf("%1c", SPACE);
 			for (col=0; col < table_row.d_size[row]; col++) {
-				printf(" %5.1lf ", table_row.data[row][col]);
+				printf(" %6.1lf ", table_row.data[row][col]);
 			}
 			if (table_row.instances[row] > 1){
-				printf("   ( %d instances)\n", table_row.instances[row]);
+				printf("   (%2d instances)\n", table_row.instances[row]);
 			} else {
-				printf("   ( %d instance)\n", table_row.instances[row]);
+				printf("   (%2d instance)\n", table_row.instances[row]);
 			}
 		}
 	}
@@ -515,12 +515,11 @@ void do_sort(csv_t D, head_t H[], int dr, int dc,
 	for (row = 1; row < dr; row++){
 		//Insertion sort; If current row/col is less than data in last row/col, it swaps down.
 		for (sel_row = row; sel_row > 0 && D[sel_row][active_col] < D[sel_row-1][active_col]; sel_row--){
-			//This method might be throwing errors on dimefox? Works on my machine + ubuntu containers
 			row_copy(D[sel_row], D[sel_row-1], dc);
 		}
 		//Set row to current item after its been sorted
 		row = sel_row;
-		//If equal and end of data row hasn't been reached, we check next column.
+		//If equiv and end of data row hasn't been reached, we check next column.
 		if (D[row][active_col] == D[row-1][active_col] && row > 0 && col < nccols && active_col < dc){
 			col += 1; row -= 1;
 		} else {
