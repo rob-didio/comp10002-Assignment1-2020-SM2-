@@ -108,7 +108,8 @@ void init_display_struct(display_row *struct_display);
 /* Stage 2 functions */
 void do_sort(csv_t D, head_t H[], int dr, int dc, int ccols[], int nccols);
 void insertion_rec_sort(csv_t D, int dr, int dc, int row, int active_col, int ccols[], int nccols);
-void row_swap(void *a1, void *a2);
+void row_copy(double r1[MAXCOLS], double r2[MAXCOLS], int dc);
+int row_compare(double r1[MAXCOLS], double r2[MAXCOLS], int dc);
 
 /****************************************************************/
 
@@ -464,25 +465,28 @@ void do_display(csv_t D, head_t H[], int dr, int dc,
 		}
 		/* Compares the memory of current row and last row, 
 		  then increments instances of current row if they match*/
-		comp = memcmp(table_row.data[row], table_row.data[row-1], sizeof(table_row.data[row]));
-		if (comp == TRUE && row > 0){
+		if (row > 0){
+			comp = row_compare(table_row.data[row], table_row.data[row-1], table_row.d_size[row]);
+			if (comp == TRUE){
 				table_row.instances[row] = table_row.instances[row-1] + 1;
+			}
 		}
 	}
 
 	// Print data loop
 	for(row=0; row < dr; row++){
-		comp = memcmp(table_row.data[row], table_row.data[row+1], sizeof(table_row.data[row]));
+		comp = row_compare(table_row.data[row], table_row.data[row+1], table_row.d_size[row]);
 		if (comp == TRUE){
 			continue;
 		} else {
-			printf("%1c", SPACE);
-			for (col=0; col < table_row.d_size[row]; col++) printf(" %6.1lf ", table_row.data[row][col]);
-			
+			printf("%2c", SPACE);
+			for (col=0; col < table_row.d_size[row]; col++) {
+				printf(" %5.1lf ", table_row.data[row][col]);
+			}
 			if (table_row.instances[row] > 1){
-				printf("   (%2d instances)\n", table_row.instances[row]);
+				printf("   ( %d instances)\n", table_row.instances[row]);
 			} else {
-				printf("   (%2d instance)\n", table_row.instances[row]);
+				printf("   ( %d instance)\n", table_row.instances[row]);
 			}
 		}
 	}
@@ -491,7 +495,6 @@ void do_display(csv_t D, head_t H[], int dr, int dc,
 void do_sort(csv_t D, head_t H[], int dr, int dc, 
                     int ccols[], int nccols){
 	int row, active_col, col, sel_row;
-	double tmp[MAXCOLS];
 
 	// Output confirmation
 	printf("\n");
@@ -513,9 +516,7 @@ void do_sort(csv_t D, head_t H[], int dr, int dc,
 		//Insertion sort; If current row/col is less than data in last row/col, it swaps down.
 		for (sel_row = row; sel_row > 0 && D[sel_row][active_col] < D[sel_row-1][active_col]; sel_row--){
 			//This method might be throwing errors on dimefox? Works on my machine + ubuntu containers
-			memcpy(tmp, &D[sel_row], sizeof(D[sel_row]));
-			memcpy(&D[sel_row], &D[sel_row-1], sizeof(D[sel_row-1]));
-			memcpy(&D[sel_row-1], tmp, sizeof(tmp));
+			row_copy(D[sel_row], D[sel_row-1], dc);
 		}
 		//Set row to current item after its been sorted
 		row = sel_row;
@@ -527,6 +528,28 @@ void do_sort(csv_t D, head_t H[], int dr, int dc,
 		}
 		active_col = ccols[col];		
 	}
+}
+
+void row_copy(double r1[MAXCOLS], double r2[MAXCOLS], int dc){
+	int col;
+	double tmp;
+
+	for(col = 0; col < dc; col++){
+		tmp = r1[col];
+		r1[col] = r2[col];
+		r2[col] = tmp;
+	}	
+}
+
+int row_compare(double r1[MAXCOLS], double r2[MAXCOLS], int dc){
+	int col;
+
+	for(col = 0; col < dc; col++){
+		if (r1[col] != r2[col]) {
+			return FALSE;
+		}
+	}
+	return TRUE;
 }
 
 /* Checks if column in a csv_t is sorted (Ascending). 
