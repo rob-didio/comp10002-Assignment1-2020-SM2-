@@ -380,6 +380,10 @@ handle_command(int command, int ccols[], int nccols,
 /* the 'a' analyze command
    
    Finds statistics in csv_t columns inputted by a user.
+
+   Takes the standard inputs
+
+   return: void
 */
 void do_analyze(csv_t D, head_t H[], int dr, int dc, 
                 int ccols[], int nccols){
@@ -441,11 +445,20 @@ void do_analyze(csv_t D, head_t H[], int dr, int dc,
 	}
 }
 
+/* the 'd' command
+
+   Prints data columns from csv_t specified by user.
+
+   Takes the standard inputs
+   
+   return: void
+*/
 void do_display(csv_t D, head_t H[], int dr, int dc, 
                     int ccols[], int nccols){
 	int row, col, j, comp;
 	display_row table_row;
 
+	// Initializes table_row with defaults
 	init_display_struct(&table_row);
 
 	// Header loop
@@ -463,7 +476,8 @@ void do_display(csv_t D, head_t H[], int dr, int dc,
 			table_row.data[row][col] = D[row][ccols[col]];
 			table_row.d_size[row] += 1;
 		}
-		/* Compares the memory of current row and last row, 
+		
+		/* Compares the values of current row and last row, 
 		  then increments instances of current row if they match*/
 		if (row > 0){
 			comp = row_compare(table_row.data[row], table_row.data[row-1], table_row.d_size[row]);
@@ -491,10 +505,21 @@ void do_display(csv_t D, head_t H[], int dr, int dc,
 		}
 	}
 }
+/* the 's' command
 
+   Sorts a csv_t by columns inputted by user in ascending order.
+
+   Takes the standard inputs
+
+   return: void
+*/
 void do_sort(csv_t D, head_t H[], int dr, int dc, 
                     int ccols[], int nccols){
-	int row, active_col, col, sel_row;
+	
+	int row, //Row we are iterating through
+	active_col, //Column active from ccols
+	col, //Index of ccol containing column to access
+	sel_row; //Keeps track of data row in insertion sort
 
 	// Output confirmation
 	printf("\n");
@@ -513,6 +538,7 @@ void do_sort(csv_t D, head_t H[], int dr, int dc,
 
 	// Loop through rows for sorting
 	for (row = 1; row < dr; row++){
+
 		//Insertion sort; If current row/col is less than data in last row/col, it swaps down.
 		for (sel_row = row; sel_row > 0 && D[sel_row][active_col] < D[sel_row-1][active_col]; sel_row--){
 			row_copy(D[sel_row], D[sel_row-1], dc);
@@ -528,7 +554,14 @@ void do_sort(csv_t D, head_t H[], int dr, int dc,
 		active_col = ccols[col];		
 	}
 }
+/* Takes two csv_t rows and swaps the data between them.
+   
+   r1: row 1
+   r2: row 2
+   dc: amount of columns
 
+   return: void
+*/
 void row_copy(double r1[MAXCOLS], double r2[MAXCOLS], int dc){
 	int col;
 	double tmp;
@@ -540,29 +573,33 @@ void row_copy(double r1[MAXCOLS], double r2[MAXCOLS], int dc){
 	}	
 }
 
+/* Compares two csv_t rows.
+   
+   r1: row 1
+   r2: row 2
+   dc: amount of columns
+
+   return: int (TRUE or FALSE)
+*/
 int row_compare(double r1[MAXCOLS], double r2[MAXCOLS], int dc){
 	int col;
 
 	for(col = 0; col < dc; col++){
-		if (r1[col] != r2[col]) {
-			return FALSE;
-		}
+		if (r1[col] != r2[col]) return FALSE;
 	}
 	return TRUE;
 }
 
 /* Checks if column in a csv_t is sorted (Ascending). 
    
-   Returns True (0) or False (1)
+   return: int (TRUE or FALSE)
 */
 int is_sorted(csv_t D, int dr, int active_col){
 	int row;
 	double last = D[0][active_col];
 	
 	for (row = 1; row < dr; row++){
-		if(D[row][active_col] < last){
-			return FALSE;
-		}
+		if(D[row][active_col] < last) return FALSE;
 		last = D[row][active_col];
 	}
 	return TRUE;
@@ -574,31 +611,4 @@ void init_display_struct(display_row *struct_display){
 	struct_display->data[0][0] = 0.0;
 	for (i=0; i < MAXROWS; i++) struct_display->d_size[i] = 0;
 	for(i=0; i < MAXROWS; i++) struct_display->instances[i] = 1;
-}
-
-void insertion_rec_sort(csv_t D, int dr, int dc, int row, int active_col, int ccols[], int nccols){
-	double tmp[MAXCOLS];
-
-	//printf("Callnum %d\n", callnum);
-	//printf("Rec sort started: row %d, active_col %d\n", row, active_col);
-	if (row >= dr){
-		return;
-	} else if (active_col >= nccols || ccols[active_col] >= dc) {
-		//printf("Reached end of col, next line\n");
-		return insertion_rec_sort(D, dr, dc, row+1, active_col-active_col, ccols, nccols);
-	} else if (D[row][ccols[active_col]] < D[row-1][ccols[active_col]] && row != 0){
-		//swap arrays
-		memcpy(tmp, &D[row], sizeof(D[row]));
-		memcpy(&D[row], &D[row-1], sizeof(D[row-1]));
-		memcpy(&D[row-1], tmp, sizeof(tmp));
-
-		//printf("Swapped %.1lf from row %d to row %d\n", D[row][ccols[active_col]], row, row-1);
-		return insertion_rec_sort(D, dr, dc, row-1, active_col-active_col, ccols, nccols);
-	} else if (D[row][ccols[active_col]] == D[row-1][ccols[active_col]] && row != 0){
-		//printf("Checking next column\n");
-		return insertion_rec_sort(D, dr, dc, row, active_col+1, ccols, nccols);
-	} else {
-		//printf("Next line!\n");
-		return insertion_rec_sort(D, dr, dc, row+1, active_col-active_col, ccols, nccols);
-	}
 }
