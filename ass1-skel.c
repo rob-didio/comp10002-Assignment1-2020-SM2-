@@ -113,12 +113,12 @@ void init_display_struct(display_row *struct_display);
 
 /* Stage 2 functions */
 void do_sort(csv_t D, head_t H[], int dr, int dc, int ccols[], int nccols);
-void insertion_rec_sort(csv_t D, int dr, int dc, int row, int active_col, int ccols[], int nccols);
 void row_copy(double r1[MAXCOLS], double r2[MAXCOLS], int dc);
 int row_compare(double r1[MAXCOLS], double r2[MAXCOLS], int dc);
 
 /* Stage 3 functions */
 void do_plot(csv_t D, int dr, int dc, int ccols[], int nccols);
+void make_bands(double bands[PLOT_BAND_MAX], double max, double min);
 void init_band_count(int band_counts[PLOT_BAND_MAX][MAXCOLS], int nccols);
 
 /****************************************************************/
@@ -392,16 +392,16 @@ handle_command(int command, int ccols[], int nccols,
 */
 void do_analyze(csv_t D, head_t H[], int dr, int dc, 
                 int ccols[], int nccols){
-    int row, i, sorted, active_col; 
-    double max, min, avg, med, sum;
+    int col, sorted, active_col; 
+    double max, min, avg, med;
 
     
     /*  Loops through ccols for column numbers given by the user 
         to analyze. */
-    for(i = 0; i < nccols; i++){
+    for(col = 0; col < nccols; col++){
 
             /* The column value to check given by the user */
-            active_col = ccols[i];
+            active_col = ccols[col];
 
             /* Flag to check if column is sorted (Asc)*/
             sorted = is_sorted(D, dr, active_col);
@@ -471,7 +471,8 @@ void do_display(csv_t D, head_t H[], int dr, int dc,
         /* Compares the values of current row and last row, 
           then increments instances of current row if they match*/
         if (row > 0){
-            comp = row_compare(table_row.data[row], table_row.data[row-1], table_row.d_size[row]);
+            comp = row_compare(table_row.data[row], table_row.data[row-1], 
+                   table_row.d_size[row]);
             if (comp == TRUE){
                 table_row.instances[row] = table_row.instances[row-1] + 1;
             }
@@ -480,7 +481,8 @@ void do_display(csv_t D, head_t H[], int dr, int dc,
 
     // Print data loop
     for(row=0; row < dr; row++){
-        comp = row_compare(table_row.data[row], table_row.data[row+1], table_row.d_size[row]);
+        comp = row_compare(table_row.data[row], table_row.data[row+1], 
+                table_row.d_size[row]);
         if (comp == TRUE){
             continue;
         } else {
@@ -553,7 +555,7 @@ void do_sort(csv_t D, head_t H[], int dr, int dc,
 */
 void do_plot(csv_t D, int dr, int dc, int ccols[], int nccols){
     int row, active_col, i, j, sel_band, col;
-    double min, max, diff, sel_item;
+    double min, max, sel_item;
     plot_bands bands;
     int band_counts[PLOT_BAND_MAX][MAXCOLS];
 
@@ -565,15 +567,16 @@ void do_plot(csv_t D, int dr, int dc, int ccols[], int nccols){
         update_min_max(D, dr, active_col, &max, &min);
     }
 
-    min = min - 10e-6;
-    max = max + 10e-6;
-    diff = (max-min)/PLOT_BAND_MAX;
-
-    //Make bands
-    for (i = 0; i < PLOT_BAND_MAX; i++){
-        bands[i] = min + (diff * i);
+    printf("\n");
+    if (min == max){
+        printf("all selected elements are %.1lf\n", min);
+        return;
     }
 
+    min = min - 10e-6;
+    max = max + 10e-6;
+
+    make_bands(bands, max, min);
     init_band_count(band_counts, nccols);
 
     //Build band_counts (scaling not implemented)
@@ -582,7 +585,8 @@ void do_plot(csv_t D, int dr, int dc, int ccols[], int nccols){
         for(row = 0; row < dr; row++){
             sel_item = D[row][active_col];
             for (sel_band = 0; sel_band < PLOT_BAND_MAX; sel_band++){
-                if (sel_band == PLOT_BAND_MAX - 1 || (sel_item >= bands[sel_band] && sel_item < bands[sel_band+1])){
+                if (sel_band == PLOT_BAND_MAX-1 || (sel_item >= bands[sel_band] 
+                        && sel_item < bands[sel_band+1])){
                     band_counts[sel_band][col] += 1;
                     break;
                 } 
@@ -592,19 +596,20 @@ void do_plot(csv_t D, int dr, int dc, int ccols[], int nccols){
 
     //Print plot
     for(sel_band = 0; sel_band < PLOT_BAND_MAX; sel_band++){
-        printf("%.1lf +\n", bands[sel_band]);
+        printf("%10.1lf +\n", bands[sel_band]);
         for (col = 0; col < nccols; col++){
             active_col = ccols[col];
-            printf("%2d |", active_col);
+            printf("%10d |", active_col);
             for (j = band_counts[sel_band][col]; j > 0; j--){
                 printf("]");
             }
             printf("\n"); 
         }
     }
+    printf("%10.1lf +\n", max);
 
 }
-
+/* Inititalizes all values to 0 in band_counts */
 void init_band_count(int band_counts[PLOT_BAND_MAX][MAXCOLS], int nccols){
     int i, j;
 
@@ -613,6 +618,13 @@ void init_band_count(int band_counts[PLOT_BAND_MAX][MAXCOLS], int nccols){
             band_counts[i][j] = 0;
         }
     }
+}
+
+void make_bands(double bands[PLOT_BAND_MAX], double max, double min){
+    int i;
+    double diff = (max-min)/PLOT_BAND_MAX;
+
+    for (i = 0; i < PLOT_BAND_MAX; i++) bands[i] = min + (diff * i);
 }
 
 void update_min_max(csv_t D, int dr, int active_col, double *max, double *min){
