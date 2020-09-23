@@ -119,6 +119,7 @@ int row_compare(double r1[MAXCOLS], double r2[MAXCOLS], int dc);
 
 /* Stage 3 functions */
 void do_plot(csv_t D, int dr, int dc, int ccols[], int nccols);
+void init_band_count(int band_counts[PLOT_BAND_MAX][MAXCOLS], int nccols);
 
 /****************************************************************/
 
@@ -551,9 +552,10 @@ void do_sort(csv_t D, head_t H[], int dr, int dc,
    as a sideways bar chart.
 */
 void do_plot(csv_t D, int dr, int dc, int ccols[], int nccols){
-    int row, active_col, i;
-    double min, max, diff;
+    int row, active_col, i, j, sel_band, col;
+    double min, max, diff, sel_item;
     plot_bands bands;
+    int band_counts[PLOT_BAND_MAX][MAXCOLS];
 
     //Find min and max over all cols in ccols
     min = D[0][ccols[0]];
@@ -572,7 +574,45 @@ void do_plot(csv_t D, int dr, int dc, int ccols[], int nccols){
         bands[i] = min + (diff * i);
     }
 
-    
+    init_band_count(band_counts, nccols);
+
+    //Build band_counts (scaling not implemented)
+    for(col = 0; col < nccols; col++){
+        active_col = ccols[col];
+        for(row = 0; row < dr; row++){
+            sel_item = D[row][active_col];
+            for (sel_band = 0; sel_band < PLOT_BAND_MAX; sel_band++){
+                if (sel_band == PLOT_BAND_MAX - 1 || (sel_item >= bands[sel_band] && sel_item < bands[sel_band+1])){
+                    band_counts[sel_band][col] += 1;
+                    break;
+                } 
+            }
+        }
+    }
+
+    //Print plot
+    for(sel_band = 0; sel_band < PLOT_BAND_MAX; sel_band++){
+        printf("%.1lf +\n", bands[sel_band]);
+        for (col = 0; col < nccols; col++){
+            active_col = ccols[col];
+            printf("%2d |", active_col);
+            for (j = band_counts[sel_band][col]; j > 0; j--){
+                printf("]");
+            }
+            printf("\n"); 
+        }
+    }
+
+}
+
+void init_band_count(int band_counts[PLOT_BAND_MAX][MAXCOLS], int nccols){
+    int i, j;
+
+    for(i = 0; i < PLOT_BAND_MAX; i++){
+        for (j = 0; j < nccols; j++){
+            band_counts[i][j] = 0;
+        }
+    }
 }
 
 void update_min_max(csv_t D, int dr, int active_col, double *max, double *min){
