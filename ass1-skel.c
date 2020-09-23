@@ -72,6 +72,8 @@
 #define TRUE 0
 #define FALSE 1
 #define SPACE ' '
+#define PLOT_BAND_MAX 10
+#define PLOT_ELEMENT_MAX 60
 
 /* and then, here are some types for you to work with */
 typedef char head_t[LABLEN+1];
@@ -79,22 +81,24 @@ typedef double csv_t[MAXROWS][MAXCOLS];
 
 /* Added typedefs */
 typedef struct{
-	csv_t             					 data;
-	int						  d_size[MAXROWS];
-	int	                   instances[MAXROWS];
+    csv_t             	   data;
+    int			d_size[MAXROWS];
+    int	     instances[MAXROWS];
 } display_row;
+
+typedef double plot_bands[PLOT_BAND_MAX];
 
 /****************************************************************/
 
 /* function prototypes */
 
 void get_csv_data(csv_t D, head_t H[],  int *dr,  int *dc, int argc,
-	char *argv[]);
+    char *argv[]);
 void error_and_exit(char *msg);
 void print_prompt(void);
 int  get_command(int dc, int *command, int ccols[], int *nccols);
 void handle_command(int command, int ccols[], int nccols,
-			csv_t D, head_t H[], int dr, int dc);
+            csv_t D, head_t H[], int dr, int dc);
 void do_index(csv_t D, head_t H[], int dr, int dc, int ccols[], int nccols);
 
 /* add further function prototypes below here */
@@ -103,6 +107,8 @@ void do_index(csv_t D, head_t H[], int dr, int dc, int ccols[], int nccols);
 void do_analyze(csv_t D, head_t H[], int dr, int dc, int ccols[], int nccols);
 void do_display(csv_t D, head_t H[], int dr, int dc, int ccols[], int nccols);
 int is_sorted(csv_t D, int dr, int active_col);
+void update_min_max(csv_t D, int dr, int active_col, double *max, double *min);
+void find_avg(csv_t D, int dr, int active_col, double *avg);
 void init_display_struct(display_row *struct_display);
 
 /* Stage 2 functions */
@@ -111,6 +117,9 @@ void insertion_rec_sort(csv_t D, int dr, int dc, int row, int active_col, int cc
 void row_copy(double r1[MAXCOLS], double r2[MAXCOLS], int dc);
 int row_compare(double r1[MAXCOLS], double r2[MAXCOLS], int dc);
 
+/* Stage 3 functions */
+void do_plot(csv_t D, int dr, int dc, int ccols[], int nccols);
+
 /****************************************************************/
 
 /* main program controls all the action
@@ -118,32 +127,32 @@ int row_compare(double r1[MAXCOLS], double r2[MAXCOLS], int dc);
 int
 main(int argc, char *argv[]) {
 
-	head_t H[MAXCOLS];	/* labels from the first row in csv file */
-	csv_t D;		/* the csv data stored in a 2d matrix */
-	int dr=0, dc=0;		/* number of rows and columns in csv file */
-	int ccols[MAXCOLS];
-	int nccols;
-	int command;
+    head_t H[MAXCOLS];	/* labels from the first row in csv file */
+    csv_t D;		/* the csv data stored in a 2d matrix */
+    int dr=0, dc=0;		/* number of rows and columns in csv file */
+    int ccols[MAXCOLS];
+    int nccols;
+    int command;
 
-	/* this next is a bit of magic code that you can ignore for
-	   now, it reads csv data from a file named on the
-	   commandline and saves it to D, H, dr, and dc
-	   */
-	get_csv_data(D, H, &dr, &dc, argc, argv);
-	
-	/* ok, all the input data has been read, safe now to start
-	   processing commands against it */
+    /* this next is a bit of magic code that you can ignore for
+       now, it reads csv data from a file named on the
+       commandline and saves it to D, H, dr, and dc
+       */
+    get_csv_data(D, H, &dr, &dc, argc, argv);
+    
+    /* ok, all the input data has been read, safe now to start
+       processing commands against it */
 
-	print_prompt();
-	while (get_command(dc, &command, ccols, &nccols) != EOF) {
-		handle_command(command, ccols, nccols,
-			D, H, dr, dc);
-		print_prompt();
-	}
+    print_prompt();
+    while (get_command(dc, &command, ccols, &nccols) != EOF) {
+        handle_command(command, ccols, nccols,
+            D, H, dr, dc);
+        print_prompt();
+    }
 
-	/* all done, so pack up bat and ball and head home */
-	printf("\nTa daa!!!\n");
-	return 0;
+    /* all done, so pack up bat and ball and head home */
+    printf("\nTa daa!!!\n");
+    return 0;
 }
 
 /****************************************************************/
@@ -152,7 +161,7 @@ main(int argc, char *argv[]) {
 */
 void
 print_prompt(void) {
-	printf("> ");
+    printf("> ");
 }
 
 /****************************************************************/
@@ -165,56 +174,56 @@ print_prompt(void) {
 */
 int
 get_command(int dc, int *command, int columns[], int *nccols) {
-	int i=0, c, col=0;
-	char line[LINELEN];
-	/* comand is in first character position */
-	if ((*command=getchar()) == EOF) {
-		return EOF;
-	}
-	/* and now collect the rest of the line, integer by integer,
-	   sometimes in C you just have to do things the hard way */
-	while (((c=getchar())!=EOF) && (c!='\n')) {
-		if (isdigit(c)) {
-			/* digit contributes to a number */
-			line[i++] = c;
-		} else if (i!=0)  {
-			/* reached end of a number */
-			line[i] = '\0';
-			columns[col++] = atoi(line);
-			/* reset, to collect next number */
-			i = 0;
-		} else {
-			/* just discard it */
-		}
-	}
-	if (i>0) {
-		/* reached end of the final number in input line */
-		line[i] = '\0';
-		columns[col++] = atoi(line);
-	}
+    int i=0, c, col=0;
+    char line[LINELEN];
+    /* comand is in first character position */
+    if ((*command=getchar()) == EOF) {
+        return EOF;
+    }
+    /* and now collect the rest of the line, integer by integer,
+       sometimes in C you just have to do things the hard way */
+    while (((c=getchar())!=EOF) && (c!='\n')) {
+        if (isdigit(c)) {
+            /* digit contributes to a number */
+            line[i++] = c;
+        } else if (i!=0)  {
+            /* reached end of a number */
+            line[i] = '\0';
+            columns[col++] = atoi(line);
+            /* reset, to collect next number */
+            i = 0;
+        } else {
+            /* just discard it */
+        }
+    }
+    if (i>0) {
+        /* reached end of the final number in input line */
+        line[i] = '\0';
+        columns[col++] = atoi(line);
+    }
 
-	if (col==0) {
-		/* no column numbers were provided, so generate them */
-		for (i=0; i<dc; i++) {
-			columns[i] = i;
-		}
-		*nccols = dc;
-		return !EOF;
-	}
+    if (col==0) {
+        /* no column numbers were provided, so generate them */
+        for (i=0; i<dc; i++) {
+            columns[i] = i;
+        }
+        *nccols = dc;
+        return !EOF;
+    }
 
-	/* otherwise, check the one sthat were typed against dc,
-	   the number of cols in the CSV data that was read */
-	for (i=0; i<col; i++) {
-		if (columns[i]<0 || columns[i]>=dc) {
-			printf("%d is not between 0 and %d\n",
-				columns[i], dc);
-			/* and change to "do nothing" command */
-			*command = O_NOC;
-		}
-	}
-	/* all good */
-	*nccols = col;
-	return !EOF;
+    /* otherwise, check the one sthat were typed against dc,
+       the number of cols in the CSV data that was read */
+    for (i=0; i<col; i++) {
+        if (columns[i]<0 || columns[i]>=dc) {
+            printf("%d is not between 0 and %d\n",
+                columns[i], dc);
+            /* and change to "do nothing" command */
+            *command = O_NOC;
+        }
+    }
+    /* all good */
+    *nccols = col;
+    return !EOF;
 }
 
 /****************************************************************/
@@ -231,84 +240,84 @@ get_command(int dc, int *command, int columns[], int *nccols) {
 */
 void
 get_csv_data(csv_t D, head_t H[],  int *dr,  int *dc, int argc,
-		char *argv[]) {
-	FILE *fp;
-	int rows=0, cols=0, c, len;
-	double num;
+        char *argv[]) {
+    FILE *fp;
+    int rows=0, cols=0, c, len;
+    double num;
 
-	if (argc<2) {
-		/* no filename specified */
-		error_and_exit("no CSV file named on commandline");
-	}
-	if (argc>2) {
-		/* confusion on command line */
-		error_and_exit("too many arguments supplied");
-	}
-	if ((fp=fopen(argv[1], "r")) == NULL) {
-		error_and_exit("cannot open CSV file");
-	}
+    if (argc<2) {
+        /* no filename specified */
+        error_and_exit("no CSV file named on commandline");
+    }
+    if (argc>2) {
+        /* confusion on command line */
+        error_and_exit("too many arguments supplied");
+    }
+    if ((fp=fopen(argv[1], "r")) == NULL) {
+        error_and_exit("cannot open CSV file");
+    }
 
-	/* ok, file exists and can be read, next up, first input
-	   line will be all the headings, need to read them as
-	   characters and build up the corresponding strings */
-	len = 0;
-	while ((c=fgetc(fp))!=EOF && (c!=CH_CR) && (c!=CH_NL)) {
-		/* process one input character at a time */
-		if (c==CH_COMMA) {
-			/* previous heading is ended, close it off */
-			H[cols][len] = '\0';
-			/* and start a new heading */
-			cols += 1;
-			len = 0;
-		} else {
-			/* store the character */
-			if (len==LABLEN) {
-				error_and_exit("a csv heading is too long");
-			}
-			H[cols][len] = c;
-			len++;
-		}
-	}
-	/* and don't forget to close off the last string */
-	H[cols][len] = '\0';
-	*dc = cols+1;
+    /* ok, file exists and can be read, next up, first input
+       line will be all the headings, need to read them as
+       characters and build up the corresponding strings */
+    len = 0;
+    while ((c=fgetc(fp))!=EOF && (c!=CH_CR) && (c!=CH_NL)) {
+        /* process one input character at a time */
+        if (c==CH_COMMA) {
+            /* previous heading is ended, close it off */
+            H[cols][len] = '\0';
+            /* and start a new heading */
+            cols += 1;
+            len = 0;
+        } else {
+            /* store the character */
+            if (len==LABLEN) {
+                error_and_exit("a csv heading is too long");
+            }
+            H[cols][len] = c;
+            len++;
+        }
+    }
+    /* and don't forget to close off the last string */
+    H[cols][len] = '\0';
+    *dc = cols+1;
 
-	/* now to read all of the numbers in, assumption is that the input
-	   data is properly formatted and error-free, and that every row
-	   of data has a numeric value provided for every column */
-	rows = cols = 0;
-	while (fscanf(fp, "%lf", &num) == 1) {
-		/* read a number, put it into the matrix */
-		if (cols==*dc) {
-			/* but first need to start a new row */
-			cols = 0;
-			rows += 1;
-		}
-		/* now ok to do the actual assignment... */
-		D[rows][cols] = num;
-		cols++;
-		/* and consume the comma (or newline) that comes straight
-		   after the number that was just read */
-		fgetc(fp);
-	}
-	/* should be at last column of a row */
-	if (cols != *dc) {
-		error_and_exit("missing values in input");
-	}
-	/* and that's it, just a bit of tidying up required now  */
-	*dr = rows+1;
-	fclose(fp);
-	printf("    csv data loaded from %s", argv[1]);
-	printf(" (%d rows by %d cols)\n", *dr, *dc);
-	return;
+    /* now to read all of the numbers in, assumption is that the input
+       data is properly formatted and error-free, and that every row
+       of data has a numeric value provided for every column */
+    rows = cols = 0;
+    while (fscanf(fp, "%lf", &num) == 1) {
+        /* read a number, put it into the matrix */
+        if (cols==*dc) {
+            /* but first need to start a new row */
+            cols = 0;
+            rows += 1;
+        }
+        /* now ok to do the actual assignment... */
+        D[rows][cols] = num;
+        cols++;
+        /* and consume the comma (or newline) that comes straight
+           after the number that was just read */
+        fgetc(fp);
+    }
+    /* should be at last column of a row */
+    if (cols != *dc) {
+        error_and_exit("missing values in input");
+    }
+    /* and that's it, just a bit of tidying up required now  */
+    *dr = rows+1;
+    fclose(fp);
+    printf("    csv data loaded from %s", argv[1]);
+    printf(" (%d rows by %d cols)\n", *dr, *dc);
+    return;
 }
  
 /****************************************************************/
 
 void
 error_and_exit(char *msg) {
-	printf("Error: %s\n", msg);
-	exit(EXIT_FAILURE);
+    printf("Error: %s\n", msg);
+    exit(EXIT_FAILURE);
 }
 
 /****************************************************************/
@@ -317,13 +326,13 @@ error_and_exit(char *msg) {
 */
 void
 do_index(csv_t D, head_t H[], int dr, int dc,
-		int ccols[], int nccols) {
-	int i, c;
-	printf("\n");
-	for (i=0; i<nccols; i++) {
-		c = ccols[i];
-		printf("    column %2d: %s\n", c, H[c]);
-	}
+        int ccols[], int nccols) {
+    int i, c;
+    printf("\n");
+    for (i=0; i<nccols; i++) {
+        c = ccols[i];
+        printf("    column %2d: %s\n", c, H[c]);
+    }
 }
 
 
@@ -351,30 +360,25 @@ Have Fun!!!
 */
 void
 handle_command(int command, int ccols[], int nccols,
-			csv_t D, head_t H[], int dr, int dc) { 
-	if (command==O_NOC) {
-		/* the null command, just do nothing */
-	} else if (command==O_IND) {
-		do_index(D, H, dr, dc, ccols, nccols);
-	} else if (command==O_ANA){
-		do_analyze(D, H, dr, dc, ccols, nccols);
-	} else if (command==O_DPY){
-		do_display(D, H, dr, dc, ccols, nccols);
-	} else if (command==O_SRT){
-		do_sort(D, H, dr, dc, ccols, nccols);
-/* you have to add more options here as you write further functions,
-   for example...
-	} else if (command==O_ANA) {
-		do_analyze(D, H, dr, dc, ccols, nccols);
-	} else if (command==O_DPY) {
-		do_display(D, H, dr, dc, ccols, nccols);
-*/
-	/* and now a last option for things that aren't known */
-	} else {
-		printf("command '%c' is not recognized"
-			" or not implemented yet\n", command);
-	}
-	return;
+            csv_t D, head_t H[], int dr, int dc) { 
+    if (command==O_NOC) {
+        /* the null command, just do nothing */
+    } else if (command==O_IND) {
+        do_index(D, H, dr, dc, ccols, nccols);
+    } else if (command==O_ANA){
+        do_analyze(D, H, dr, dc, ccols, nccols);
+    } else if (command==O_DPY){
+        do_display(D, H, dr, dc, ccols, nccols);
+    } else if (command==O_SRT){
+        do_sort(D, H, dr, dc, ccols, nccols);
+    } else if(command==O_PLT){
+        do_plot(D, dr, dc, ccols, nccols);
+    } else {
+        /* and now a last option for things that aren't known */
+        printf("command '%c' is not recognized"
+            " or not implemented yet\n", command);
+    }
+    return;
 }
 
 /* the 'a' analyze command
@@ -387,62 +391,48 @@ handle_command(int command, int ccols[], int nccols,
 */
 void do_analyze(csv_t D, head_t H[], int dr, int dc, 
                 int ccols[], int nccols){
-	int row, i, sorted, active_col; 
-	double max, min, avg, med, sum;
+    int row, i, sorted, active_col; 
+    double max, min, avg, med, sum;
 
-	
-	/*  Loops through ccols for column numbers given by the user 
-	    to analyze. */
-	for(i = 0; i < nccols; i++){
+    
+    /*  Loops through ccols for column numbers given by the user 
+        to analyze. */
+    for(i = 0; i < nccols; i++){
 
-			/* The column value to check given by the user */
-			active_col = ccols[i];
+            /* The column value to check given by the user */
+            active_col = ccols[i];
 
-			/* Flag to check if column is sorted (Asc)*/
-			sorted = is_sorted(D, dr, active_col);
-			
-			/* Print header for each inputed column. Sorted columns
-			  get "(sorted)" added. */
-			printf("\n");
-			if (sorted == TRUE){
-				printf("         %8s (sorted)\n", H[active_col]);
-			} else {
-				printf("         %8s\n", H[active_col]);
-			}
-			
-			/* Init values for iterating through col */
-			sum = 0.0;
-			min = D[0][active_col];
-			max = min;
+            /* Flag to check if column is sorted (Asc)*/
+            sorted = is_sorted(D, dr, active_col);
+            
+            /* Print header for each inputed column. Sorted columns
+              get "(sorted)" added. */
+            printf("\n");
+            if (sorted == TRUE){
+                printf("         %8s (sorted)\n", H[active_col]);
+            } else {
+                printf("         %8s\n", H[active_col]);
+            }
+            
+            /* Init values for finding min, max, avg through col */
+            min = D[0][active_col];
+            max = min;
 
-			/* Goes through col by row, finds min, 
-			  max and sums the values to find avg. 
-			  Originally split into several functions
-			  (find_min, find_max etc.) but doing 
-			  this removed redundant code. */
-			for(row = 0; row < dr; row++){
-				if (D[row][active_col] > max){
-					max = D[row][active_col];
-				}
-				if (D[row][active_col] < min){
-					min = D[row][active_col];
-				}
-				sum += D[row][active_col];
-			}
-			avg = sum / dr;
+            update_min_max(D, dr, active_col, &max, &min);
+            find_avg(D, dr, active_col, &avg);
 
-			/* Prints out our max, min, avg values */
-			printf("    max = %7.1lf\n", max);
-			printf("    min = %7.1lf\n", min);
-			printf("    avg = %7.1lf\n", avg);
+            /* Prints out our max, min, avg values */
+            printf("    max = %7.1lf\n", max);
+            printf("    min = %7.1lf\n", min);
+            printf("    avg = %7.1lf\n", avg);
 
-			/* Calculates and prints median value if
-			  column is sorted. */
-			if (sorted == TRUE){
-				med = D[dr/2][active_col];
-				printf("    med = %7.1lf\n", med);
-			}
-	}
+            /* Calculates and prints median value if
+              column is sorted. */
+            if (sorted == TRUE){
+                med = D[dr/2][active_col];
+                printf("    med = %7.1lf\n", med);
+            }
+    }
 }
 
 /* the 'd' command
@@ -455,55 +445,55 @@ void do_analyze(csv_t D, head_t H[], int dr, int dc,
 */
 void do_display(csv_t D, head_t H[], int dr, int dc, 
                     int ccols[], int nccols){
-	int row, col, j, comp;
-	display_row table_row;
+    int row, col, j, comp;
+    display_row table_row;
 
-	// Initializes table_row with defaults
-	init_display_struct(&table_row);
+    // Initializes table_row with defaults
+    init_display_struct(&table_row);
 
-	// Header loop
-	printf("\n");
-	for(col=nccols-1; col >= 0; col--){
-		for (j=0; j < (col*2); j++){
-			printf("%4c", SPACE);
-		}
-		printf("%8s\n", H[ccols[col]]);
-	}
+    // Header loop
+    printf("\n");
+    for(col=nccols-1; col >= 0; col--){
+        for (j=0; j < (col*2); j++){
+            printf("%4c", SPACE);
+        }
+        printf("%8s\n", H[ccols[col]]);
+    }
 
-	// Input data into table_rows
-	for(row=0; row < dr; row++){
-		for (col=0; col < nccols && ccols[col] < dc; col++){
-			table_row.data[row][col] = D[row][ccols[col]];
-			table_row.d_size[row] += 1;
-		}
-		
-		/* Compares the values of current row and last row, 
-		  then increments instances of current row if they match*/
-		if (row > 0){
-			comp = row_compare(table_row.data[row], table_row.data[row-1], table_row.d_size[row]);
-			if (comp == TRUE){
-				table_row.instances[row] = table_row.instances[row-1] + 1;
-			}
-		}
-	}
+    // Input data into table_rows
+    for(row=0; row < dr; row++){
+        for (col=0; col < nccols && ccols[col] < dc; col++){
+            table_row.data[row][col] = D[row][ccols[col]];
+            table_row.d_size[row] += 1;
+        }
 
-	// Print data loop
-	for(row=0; row < dr; row++){
-		comp = row_compare(table_row.data[row], table_row.data[row+1], table_row.d_size[row]);
-		if (comp == TRUE){
-			continue;
-		} else {
-			printf("%1c", SPACE);
-			for (col=0; col < table_row.d_size[row]; col++) {
-				printf(" %6.1lf ", table_row.data[row][col]);
-			}
-			if (table_row.instances[row] > 1){
-				printf("   (%2d instances)\n", table_row.instances[row]);
-			} else {
-				printf("   (%2d instance)\n", table_row.instances[row]);
-			}
-		}
-	}
+        /* Compares the values of current row and last row, 
+          then increments instances of current row if they match*/
+        if (row > 0){
+            comp = row_compare(table_row.data[row], table_row.data[row-1], table_row.d_size[row]);
+            if (comp == TRUE){
+                table_row.instances[row] = table_row.instances[row-1] + 1;
+            }
+        }
+    }
+
+    // Print data loop
+    for(row=0; row < dr; row++){
+        comp = row_compare(table_row.data[row], table_row.data[row+1], table_row.d_size[row]);
+        if (comp == TRUE){
+            continue;
+        } else {
+            printf("%1c", SPACE);
+            for (col=0; col < table_row.d_size[row]; col++) {
+                printf(" %6.1lf ", table_row.data[row][col]);
+            }
+            if (table_row.instances[row] > 1){
+                printf("   (%2d instances)\n", table_row.instances[row]);
+            } else {
+                printf("   (%2d instance)\n", table_row.instances[row]);
+            }
+        }
+    }
 }
 /* the 's' command
 
@@ -515,45 +505,99 @@ void do_display(csv_t D, head_t H[], int dr, int dc,
 */
 void do_sort(csv_t D, head_t H[], int dr, int dc, 
                     int ccols[], int nccols){
-	
-	int row, //Row we are iterating through
-	active_col, //Column active from ccols
-	col, //Index of ccol containing column to access
-	sel_row; //Keeps track of data row in insertion sort
+    
+    int row, //Row we are iterating through
+    active_col, //Column active from ccols
+    col, //Index of ccol containing column to access
+    sel_row; //Keeps track of data row in insertion sort
 
-	// Output confirmation
-	printf("\n");
-	printf("    sorted by: ");
-	for (col = 0; col < nccols; col++){
-		if (col == nccols-1){ 
-			printf("%s\n", H[ccols[col]]);
-		} else {
-			printf("%s, ", H[ccols[col]]);
-		}
-	}
+    // Output confirmation
+    printf("\n");
+    printf("    sorted by: ");
+    for (col = 0; col < nccols; col++){
+        if (col == nccols-1){ 
+            printf("%s\n", H[ccols[col]]);
+        } else {
+            printf("%s, ", H[ccols[col]]);
+        }
+    }
 
-	// Init our column from ccol
-	col = 0;
-	active_col = ccols[col];
+    // Init our column from ccol
+    col = 0;
+    active_col = ccols[col];
 
-	// Loop through rows for sorting
-	for (row = 1; row < dr; row++){
+    // Loop through rows for sorting
+    for (row = 1; row < dr; row++){
 
-		//Insertion sort; If current row/col is less than data in last row/col, it swaps down.
-		for (sel_row = row; sel_row > 0 && D[sel_row][active_col] < D[sel_row-1][active_col]; sel_row--){
-			row_copy(D[sel_row], D[sel_row-1], dc);
-		}
-		//Set row to current item after its been sorted
-		row = sel_row;
-		//If equiv and end of data row hasn't been reached, we check next column.
-		if (D[row][active_col] == D[row-1][active_col] && row > 0 && col < nccols && active_col < dc){
-			col += 1; row -= 1;
-		} else {
-			col = 0;
-		}
-		active_col = ccols[col];		
-	}
+        //Insertion sort; If current row/col is less than data in last row/col, it swaps down.
+        for (sel_row = row; sel_row > 0 && D[sel_row][active_col] < D[sel_row-1][active_col]; sel_row--){
+            row_copy(D[sel_row], D[sel_row-1], dc);
+        }
+        //Set row to current item after its been sorted
+        row = sel_row;
+        //If equiv and end of data row hasn't been reached, we check next column.
+        if (D[row][active_col] == D[row-1][active_col] && row > 0 && col < nccols && active_col < dc){
+            col += 1; 
+            row -= 1;
+        } else {
+            col = 0;
+        }
+        active_col = ccols[col];		
+    }
 }
+/* the 'p' command
+
+   Creates a frequency histogram of selected columns in a csv_t 
+   as a sideways bar chart.
+*/
+void do_plot(csv_t D, int dr, int dc, int ccols[], int nccols){
+    int row, active_col, i;
+    double min, max, diff;
+    plot_bands bands;
+
+    //Find min and max over all cols in ccols
+    min = D[0][ccols[0]];
+    max = min;
+    for (i = 0; i < nccols; i++){
+        active_col = ccols[i];
+        update_min_max(D, dr, active_col, &max, &min);
+    }
+
+    min = min - 10e-6;
+    max = max + 10e-6;
+    diff = (max-min)/PLOT_BAND_MAX;
+
+    //Make bands
+    for (i = 0; i < PLOT_BAND_MAX; i++){
+        bands[i] = min + (diff * i);
+    }
+
+    
+}
+
+void update_min_max(csv_t D, int dr, int active_col, double *max, double *min){
+    int row;
+
+    for(row = 0; row < dr; row++){
+        if (D[row][active_col] > *max){
+                *max = D[row][active_col];
+            }
+        if (D[row][active_col] < *min){
+                *min = D[row][active_col];
+            }
+    }
+}
+
+void find_avg(csv_t D, int dr, int active_col, double *avg){
+    int row;
+    double sum = 0.0;
+
+    for (row = 0; row < dr; row++){
+        sum += D[row][active_col];
+    }
+    *avg = sum / dr;
+}
+
 /* Takes two csv_t rows and swaps the data between them.
    
    r1: row 1
@@ -563,14 +607,14 @@ void do_sort(csv_t D, head_t H[], int dr, int dc,
    return: void
 */
 void row_copy(double r1[MAXCOLS], double r2[MAXCOLS], int dc){
-	int col;
-	double tmp;
+    int col;
+    double tmp;
 
-	for(col = 0; col < dc; col++){
-		tmp = r1[col];
-		r1[col] = r2[col];
-		r2[col] = tmp;
-	}	
+    for(col = 0; col < dc; col++){
+        tmp = r1[col];
+        r1[col] = r2[col];
+        r2[col] = tmp;
+    }	
 }
 
 /* Compares two csv_t rows.
@@ -582,12 +626,12 @@ void row_copy(double r1[MAXCOLS], double r2[MAXCOLS], int dc){
    return: int (TRUE or FALSE)
 */
 int row_compare(double r1[MAXCOLS], double r2[MAXCOLS], int dc){
-	int col;
+    int col;
 
-	for(col = 0; col < dc; col++){
-		if (r1[col] != r2[col]) return FALSE;
-	}
-	return TRUE;
+    for(col = 0; col < dc; col++){
+        if (r1[col] != r2[col]) return FALSE;
+    }
+    return TRUE;
 }
 
 /* Checks if column in a csv_t is sorted (Ascending). 
@@ -595,20 +639,23 @@ int row_compare(double r1[MAXCOLS], double r2[MAXCOLS], int dc){
    return: int (TRUE or FALSE)
 */
 int is_sorted(csv_t D, int dr, int active_col){
-	int row;
-	double last = D[0][active_col];
-	
-	for (row = 1; row < dr; row++){
-		if(D[row][active_col] < last) return FALSE;
-		last = D[row][active_col];
-	}
-	return TRUE;
+    int row;
+    double last = D[0][active_col];
+    
+    for (row = 1; row < dr; row++){
+        if(D[row][active_col] < last) return FALSE;
+        last = D[row][active_col];
+    }
+    return TRUE;
 }
 
+/* Initializes a display row with defaults */
 void init_display_struct(display_row *struct_display){
-	int i;
-	
-	struct_display->data[0][0] = 0.0;
-	for (i=0; i < MAXROWS; i++) struct_display->d_size[i] = 0;
-	for(i=0; i < MAXROWS; i++) struct_display->instances[i] = 1;
+    int i;
+    
+    struct_display->data[0][0] = 0.0;
+    for (i=0; i < MAXROWS; i++) struct_display->d_size[i] = 0;
+    for(i=0; i < MAXROWS; i++) struct_display->instances[i] = 1;
 }
+
+//algorithms are fun
