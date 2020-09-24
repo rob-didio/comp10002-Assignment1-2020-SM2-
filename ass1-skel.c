@@ -617,7 +617,7 @@ void do_plot(csv_t D, int dr, int dc, int ccols[], int nccols){
         }
     }
     printf("%11.1lf +\n", max);
-    printf("    scale = %d\n", scale);
+    printf("   scale = %d\n", scale);
 }
 /* Inititalizes all values to 0 in band_counts */
 void init_band_count(int band_counts[PLOT_BAND_MAX][MAXCOLS], int nccols){
