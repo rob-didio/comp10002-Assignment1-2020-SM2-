@@ -554,7 +554,7 @@ void do_sort(csv_t D, head_t H[], int dr, int dc,
    as a sideways bar chart.
 */
 void do_plot(csv_t D, int dr, int dc, int ccols[], int nccols){
-    int row, active_col, i, j, sel_band, col;
+    int row, active_col, j, sel_band, col, scale, max_band_count;
     double min, max, sel_item;
     plot_bands bands;
     int band_counts[PLOT_BAND_MAX][MAXCOLS];
@@ -562,11 +562,12 @@ void do_plot(csv_t D, int dr, int dc, int ccols[], int nccols){
     //Find min and max over all cols in ccols
     min = D[0][ccols[0]];
     max = min;
-    for (i = 0; i < nccols; i++){
-        active_col = ccols[i];
+    for (col = 0; col < nccols; col++){
+        active_col = ccols[col];
         update_min_max(D, dr, active_col, &max, &min);
     }
 
+    // When all elements are the same we return
     printf("\n");
     if (min == max){
         printf("all selected elements are %.1lf\n", min);
@@ -576,10 +577,11 @@ void do_plot(csv_t D, int dr, int dc, int ccols[], int nccols){
     min = min - 10e-6;
     max = max + 10e-6;
 
-    make_bands(bands, max, min);
+    make_bands(bands, max, min); //size == PLOT_BAND_MAX
     init_band_count(band_counts, nccols);
 
-    //Build band_counts (scaling not implemented)
+    //Build band_counts
+    max_band_count = 0;
     for(col = 0; col < nccols; col++){
         active_col = ccols[col];
         for(row = 0; row < dr; row++){
@@ -588,26 +590,34 @@ void do_plot(csv_t D, int dr, int dc, int ccols[], int nccols){
                 if (sel_band == PLOT_BAND_MAX-1 || (sel_item >= bands[sel_band] 
                         && sel_item < bands[sel_band+1])){
                     band_counts[sel_band][col] += 1;
+                    // Save largest band_count for integer scale
+                    if (band_counts[sel_band][col] > max_band_count){
+                        max_band_count = band_counts[sel_band][col];
+                    }
                     break;
                 } 
             }
         }
     }
+    scale = 1;
+    if (max_band_count > 0 && max_band_count > PLOT_ELEMENT_MAX) {
+        scale =  ceil((double)max_band_count / PLOT_ELEMENT_MAX);
+    }
 
     //Print plot
     for(sel_band = 0; sel_band < PLOT_BAND_MAX; sel_band++){
-        printf("%10.1lf +\n", bands[sel_band]);
+        printf("%11.1lf +\n", bands[sel_band]);
         for (col = 0; col < nccols; col++){
             active_col = ccols[col];
-            printf("%10d |", active_col);
-            for (j = band_counts[sel_band][col]; j > 0; j--){
+            printf("%11d |", active_col);
+            for (j = (band_counts[sel_band][col] / scale); j > 0; j--){
                 printf("]");
             }
             printf("\n"); 
         }
     }
-    printf("%10.1lf +\n", max);
-
+    printf("%11.1lf +\n", max);
+    printf("    scale = %d\n", scale);
 }
 /* Inititalizes all values to 0 in band_counts */
 void init_band_count(int band_counts[PLOT_BAND_MAX][MAXCOLS], int nccols){
